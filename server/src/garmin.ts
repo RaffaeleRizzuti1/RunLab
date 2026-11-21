@@ -1,6 +1,6 @@
 const baseUrl = 'https://personal.connectapi.garmin.com';
 const tokenPath = '/personalapitoken-service/personal-api/personal-api-key/token';
-const activitiesPath = '/activitylist-service/activities/search/activities?start=0&limit=5';
+const activitiesPath = '/activitylist-service/activities/search/activities';
 const refreshBufferMs = 60_000;
 
 type AccessToken = { value: string; expiresAt: number };
@@ -90,26 +90,61 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
     return pendingToken;
   }
 
+  async function searchActivities(query: URLSearchParams): Promise<unknown[]> {
+    const token = await getToken();
+    const response = await send(`${activitiesPath}?${query}`, 'GET', `Bearer ${token.value}`);
+    if (!response.ok) {
+      if (response.status === 401 && cachedToken === token) {
+        cachedToken = undefined;
+      }
+      await response.body?.cancel();
+      throw new Error('Garmin activity search failed');
+    }
+    if (response.status === 204) {
+      return [];
+    }
+
+    const activities: unknown = await response.json();
+    if (!Array.isArray(activities)) {
+      throw new Error('Unexpected Garmin activity list');
+    }
+    return activities;
+  }
+
   return {
     async getActivities() {
-      const token = await getToken();
-      const response = await send(activitiesPath, 'GET', `Bearer ${token.value}`);
-      if (!response.ok) {
-        if (response.status === 401 && cachedToken === token) {
-          cachedToken = undefined;
+      const activities = await searchActivities(new URLSearchParams({ start: '0', limit: '5' }));
+      return activities.slice(0, 5).map(summarizeActivity);
+    },
+
+    async getActivitiesInDateRange(startDate: string, endDate: string) {
+      const limit = 99;
+      const activities: unknown[] = [];
+
+      for (let start = 0; ; start += limit) {
+        const page = await searchActivities(new URLSearchParams({
+          start: String(start),
+          limit: String(limit),
+          startDate,
+          endDate,
+        }));
+        activities.push(...page);
+        if (page.length < limit) {
+          break;
         }
-        await response.body?.cancel();
-        throw new Error('Garmin activity search failed');
-      }
-      if (response.status === 204) {
-        return [];
       }
 
-      const activities: unknown = await response.json();
-      if (!Array.isArray(activities)) {
-        throw new Error('Unexpected Garmin activity list');
-      }
-      return activities.slice(0, 5).map(summarizeActivity);
+      return activities.map((value) => {
+        const activity = asRecord(value);
+        const type = activity.activityType == null ? {} : asRecord(activity.activityType);
+        return {
+          startTimeGmt: typeof activity.startTimeGMT === 'string' ? activity.startTimeGMT : undefined,
+          // Garmin's activity type schema identifies running as type ID 1.
+          isRunning: type.typeKey === 'running' || type.parentTypeId === 1,
+          distance: typeof activity.distance === 'number' ? activity.distance : undefined,
+          duration: typeof activity.duration === 'number' ? activity.duration : undefined,
+        };
+      });
     },
   };
 }

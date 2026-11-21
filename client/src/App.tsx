@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Activities } from './Activities';
+import { WeeklyOverview } from './WeeklyOverview';
 
 type ConnectionStatus = 'checking' | 'connected' | 'error' | 'timeout';
 
@@ -62,6 +63,7 @@ export function App() {
     <main>
       <h1>RunLab</h1>
       <p role="status">{messages[status]}</p>
+      <WeeklyOverview />
       <Activities />
     </main>
   );
