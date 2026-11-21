@@ -143,6 +143,13 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
           isRunning: type.typeKey === 'running' || type.parentTypeId === 1,
           distance: typeof activity.distance === 'number' ? activity.distance : undefined,
           duration: typeof activity.duration === 'number' ? activity.duration : undefined,
+          heartRateZoneSeconds: {
+            z1: activity.hrTimeInZone_1,
+            z2: activity.hrTimeInZone_2,
+            z3: activity.hrTimeInZone_3,
+            z4: activity.hrTimeInZone_4,
+            z5: activity.hrTimeInZone_5,
+          },
         };
       });
     },

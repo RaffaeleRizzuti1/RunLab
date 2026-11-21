@@ -1,38 +1,13 @@
-type Week = { weekStart: string; weekEnd: string };
+import { romeDate, type Week } from './rome-calendar.js';
+import { heartRateZoneKeys, type HeartRateZones } from './heart-rate-zones.js';
 
 type WeeklyActivity = {
   isRunning: boolean;
   startTimeGmt?: string;
   distance?: number;
   duration?: number;
+  heartRateZoneSeconds?: Partial<Record<typeof heartRateZoneKeys[number], unknown>>;
 };
-
-const romeDay = new Intl.DateTimeFormat('en', {
-  timeZone: 'Europe/Rome',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
-function romeDate(instant: Date): string {
-  const parts = romeDay.formatToParts(instant);
-  const get = (type: 'year' | 'month' | 'day') => parts.find((part) => part.type === type)?.value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
-
-// Use UTC purely for date arithmetic on already-resolved Rome calendar dates.
-export function shiftCalendarDate(date: string, days: number): string {
-  const calendarDay = new Date(date);
-  calendarDay.setUTCDate(calendarDay.getUTCDate() + days);
-  return calendarDay.toISOString().slice(0, 10);
-}
-
-export function getRomeWeek(now: Date): Week {
-  const today = romeDate(now);
-  const daysSinceMonday = (new Date(today).getUTCDay() + 6) % 7;
-  const weekStart = shiftCalendarDate(today, -daysSinceMonday);
-  return { weekStart, weekEnd: shiftCalendarDate(weekStart, 6) };
-}
 
 function nonNegative(value: number | undefined): number {
   return value !== undefined && Number.isFinite(value) && value >= 0 ? value : 0;
@@ -42,6 +17,10 @@ export function summarizeWeek(week: Week, activities: readonly WeeklyActivity[])
   let distanceMeters = 0;
   let durationSeconds = 0;
   let activityCount = 0;
+  const heartRateZones: HeartRateZones = {
+    seconds: { z1: null, z2: null, z3: null, z4: null, z5: null },
+    coverage: { activitiesWithZoneData: 0, activitiesWithCompleteZoneData: 0 },
+  };
 
   for (const activity of activities) {
     if (!activity.isRunning || !activity.startTimeGmt) {
@@ -61,6 +40,21 @@ export function summarizeWeek(week: Week, activities: readonly WeeklyActivity[])
     activityCount += 1;
     distanceMeters += nonNegative(activity.distance);
     durationSeconds += nonNegative(activity.duration);
+
+    let reportedZones = 0;
+    for (const zone of heartRateZoneKeys) {
+      const seconds = activity.heartRateZoneSeconds?.[zone];
+      if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds >= 0) {
+        heartRateZones.seconds[zone] = (heartRateZones.seconds[zone] ?? 0) + seconds;
+        reportedZones += 1;
+      }
+    }
+    if (reportedZones > 0) {
+      heartRateZones.coverage.activitiesWithZoneData += 1;
+    }
+    if (reportedZones === heartRateZoneKeys.length) {
+      heartRateZones.coverage.activitiesWithCompleteZoneData += 1;
+    }
   }
 
   const totalDistanceKm = distanceMeters / 1_000;
@@ -69,8 +63,29 @@ export function summarizeWeek(week: Week, activities: readonly WeeklyActivity[])
     totalDistanceKm,
     totalDurationMinutes: durationSeconds / 60,
     activityCount,
+    heartRateZones,
     averagePaceSecondsPerKm: totalDistanceKm > 0 && durationSeconds > 0
       ? durationSeconds / totalDistanceKm
       : null,
+  };
+}
+
+type WeeklySummary = ReturnType<typeof summarizeWeek>;
+
+function percentChange(current: number, previous: number): number | null {
+  return previous === 0 ? null : (current - previous) / previous * 100;
+}
+
+export function compareWeeks(current: WeeklySummary, previous: WeeklySummary) {
+  const currentPace = current.averagePaceSecondsPerKm;
+  const previousPace = previous.averagePaceSecondsPerKm;
+
+  return {
+    distanceChangePercent: percentChange(current.totalDistanceKm, previous.totalDistanceKm),
+    durationChangePercent: percentChange(current.totalDurationMinutes, previous.totalDurationMinutes),
+    activityCountChange: current.activityCount - previous.activityCount,
+    paceChangeSecondsPerKm: currentPace === null || previousPace === null
+      ? null
+      : currentPace - previousPace,
   };
 }

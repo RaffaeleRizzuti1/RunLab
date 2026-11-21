@@ -1,0 +1,44 @@
+.heart-rate-zones {
+  margin-block-start: 1.5rem;
+}
+
+.heart-rate-zones__list {
+  display: grid;
+  gap: 0.75rem;
+  max-inline-size: 45rem;
+}
+
+.heart-rate-zones__row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  align-items: start;
+}
+
+.heart-rate-zones__row dt {
+  font-weight: bold;
+}
+
+.heart-rate-zones__row dd {
+  margin: 0;
+}
+
+.heart-rate-zones__track {
+  block-size: 0.625rem;
+  margin-block: 0.25rem;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.heart-rate-zones__track span {
+  display: block;
+  block-size: 100%;
+  background: currentColor;
+}
+
+@media (forced-colors: active) {
+  .heart-rate-zones__track span {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}

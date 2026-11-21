@@ -1,6 +1,7 @@
 import express, { type Response } from 'express';
 import { createGarminClient, GarminError } from './garmin.js';
-import { getRomeWeek, shiftCalendarDate, summarizeWeek } from './weekly-summary.js';
+import { getRomeWeek, shiftCalendarDate, weekFromMonday } from './rome-calendar.js';
+import { summarizeWeek, compareWeeks } from './weekly-summary.js';
 
 function sendGarminError(response: Response, error: unknown) {
   if (error instanceof GarminError && error.kind === 'not-configured') {
@@ -29,17 +30,29 @@ export function createApp(garmin = createGarminClient()) {
     }
   });
 
-  app.get('/api/weekly-summary', async (_request, response) => {
+  app.get('/api/weekly-summary', async (request, response) => {
     response.set('Cache-Control', 'no-store');
 
+    const { weekStart } = request.query;
+    const week = weekStart === undefined ? getRomeWeek(new Date()) : weekFromMonday(weekStart);
+    if (!week) {
+      response.status(400).json({ error: 'weekStart must be a Monday in YYYY-MM-DD format.' });
+      return;
+    }
+
     try {
-      const week = getRomeWeek(new Date());
+      const previousWeek = {
+        weekStart: shiftCalendarDate(week.weekStart, -7),
+        weekEnd: shiftCalendarDate(week.weekStart, -1),
+      };
       // Garmin filters by the activity's local date, which can differ from Rome's.
       const activities = await garmin.getActivitiesInDateRange(
-        shiftCalendarDate(week.weekStart, -1),
+        shiftCalendarDate(previousWeek.weekStart, -1),
         shiftCalendarDate(week.weekEnd, 1),
       );
-      response.json(summarizeWeek(week, activities));
+      const current = summarizeWeek(week, activities);
+      const previous = summarizeWeek(previousWeek, activities);
+      response.json({ ...current, previousWeek: previous, comparison: compareWeeks(current, previous) });
     } catch (error) {
       sendGarminError(response, error);
     }

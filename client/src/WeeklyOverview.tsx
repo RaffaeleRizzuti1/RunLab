@@ -1,13 +1,29 @@
 import { useEffect, useId, useState } from 'react';
+import { heartRateZoneKeys, type HeartRateZones as ZoneSummary } from '../../server/src/heart-rate-zones';
+import { getRomeWeek, isCalendarDate, shiftCalendarDate } from '../../server/src/rome-calendar';
+import { HeartRateZones } from './HeartRateZones';
 import './WeeklyOverview.css';
 
-type WeeklySummary = {
+type WeekStats = {
   weekStart: string;
   weekEnd: string;
   totalDistanceKm: number;
   totalDurationMinutes: number;
   activityCount: number;
   averagePaceSecondsPerKm: number | null;
+  heartRateZones: ZoneSummary;
+};
+
+type WeekComparison = {
+  distanceChangePercent: number | null;
+  durationChangePercent: number | null;
+  activityCountChange: number;
+  paceChangeSecondsPerKm: number | null;
+};
+
+type WeeklySummary = WeekStats & {
+  previousWeek: WeekStats;
+  comparison: WeekComparison;
 };
 
 type OverviewState =
@@ -15,7 +31,6 @@ type OverviewState =
   | { status: 'error'; message: string }
   | { status: 'ready'; summary: WeeklySummary };
 
-const calendarDate = /^\d{4}-\d{2}-\d{2}$/;
 const dateFormatter = new Intl.DateTimeFormat('en', {
   dateStyle: 'medium',
   timeZone: 'UTC',
@@ -26,11 +41,22 @@ function isNonNegativeNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-function isCalendarDate(value: unknown): value is string {
-  return typeof value === 'string' && calendarDate.test(value) && Number.isFinite(Date.parse(value));
+function isZoneSummary(value: unknown, activityCount: number): value is ZoneSummary {
+  if (typeof value !== 'object' || value === null
+    || !('seconds' in value) || typeof value.seconds !== 'object' || value.seconds === null
+    || !('coverage' in value) || typeof value.coverage !== 'object' || value.coverage === null) {
+    return false;
+  }
+
+  const seconds = value.seconds as Record<string, unknown>;
+  const { activitiesWithZoneData, activitiesWithCompleteZoneData } = value.coverage as Record<string, unknown>;
+  return heartRateZoneKeys.every((zone) => seconds[zone] === null || isNonNegativeNumber(seconds[zone]))
+    && isNonNegativeNumber(activitiesWithZoneData) && Number.isInteger(activitiesWithZoneData)
+    && isNonNegativeNumber(activitiesWithCompleteZoneData) && Number.isInteger(activitiesWithCompleteZoneData)
+    && activitiesWithCompleteZoneData <= activitiesWithZoneData && activitiesWithZoneData <= activityCount;
 }
 
-function isWeeklySummary(value: unknown): value is WeeklySummary {
+function isWeekStats(value: unknown): value is WeekStats {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -42,8 +68,26 @@ function isWeeklySummary(value: unknown): value is WeeklySummary {
     && isNonNegativeNumber(summary.totalDurationMinutes)
     && isNonNegativeNumber(summary.activityCount)
     && Number.isInteger(summary.activityCount)
+    && isZoneSummary(summary.heartRateZones, summary.activityCount)
     && (summary.averagePaceSecondsPerKm === null
       || isNonNegativeNumber(summary.averagePaceSecondsPerKm));
+}
+
+function isNullableChange(value: unknown): value is number | null {
+  return value === null || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isWeeklySummary(value: unknown): value is WeeklySummary {
+  if (!isWeekStats(value) || !('previousWeek' in value) || !isWeekStats(value.previousWeek)
+    || !('comparison' in value) || typeof value.comparison !== 'object' || !value.comparison) {
+    return false;
+  }
+
+  const comparison = value.comparison as Record<string, unknown>;
+  return isNullableChange(comparison.distanceChangePercent)
+    && isNullableChange(comparison.durationChangePercent)
+    && Number.isInteger(comparison.activityCountChange)
+    && isNullableChange(comparison.paceChangeSecondsPerKm);
 }
 
 function formatDuration(totalMinutes: number): string {
@@ -62,8 +106,90 @@ function formatPace(secondsPerKm: number | null): string {
   return `${minutesPart}:${secondsPart} /km`;
 }
 
+function formatPercentChange(value: number | null): string {
+  if (value === null) {
+    return 'Unavailable';
+  }
+  return `${value < 0 ? '' : '+'}${value.toFixed(1)}%`;
+}
+
+const signedChange = new Intl.NumberFormat('en', {
+  signDisplay: 'exceptZero',
+  maximumFractionDigits: 1,
+});
+
+function WeeklyComparison({ previousWeek, comparison }: Pick<WeeklySummary, 'previousWeek' | 'comparison'>) {
+  const changes = [
+    { label: 'Distance change', value: formatPercentChange(comparison.distanceChangePercent) },
+    { label: 'Duration change', value: formatPercentChange(comparison.durationChangePercent) },
+    { label: 'Running activity change', value: signedChange.format(comparison.activityCountChange) },
+    {
+      label: 'Average pace change',
+      value: comparison.paceChangeSecondsPerKm === null
+        ? 'Unavailable'
+        : `${signedChange.format(comparison.paceChangeSecondsPerKm)} s/km`,
+    },
+  ];
+
+  return (
+    <section className="weekly-overview__comparison">
+      <h3>Weekly Comparison</h3>
+      <p>
+        Previous week{' '}
+        <time dateTime={previousWeek.weekStart}>{dateFormatter.format(new Date(previousWeek.weekStart))}</time>
+        {' – '}
+        <time dateTime={previousWeek.weekEnd}>{dateFormatter.format(new Date(previousWeek.weekEnd))}</time>
+      </p>
+      <dl className="weekly-overview__stats">
+        {changes.map(({ label, value }) => (
+          <div className="weekly-overview__card" key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 export function WeeklyOverview() {
   const headingId = useId();
+  const currentWeekStart = getRomeWeek(new Date()).weekStart;
+  const [pastWeekStart, setPastWeekStart] = useState<string>();
+  const weekStart = pastWeekStart ?? currentWeekStart;
+  const weekEnd = shiftCalendarDate(weekStart, 6);
+  const isCurrentWeek = weekStart >= currentWeekStart;
+
+  function selectNextWeek() {
+    const nextWeekStart = shiftCalendarDate(weekStart, 7);
+    setPastWeekStart(nextWeekStart < currentWeekStart ? nextWeekStart : undefined);
+  }
+
+  return (
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId}>Weekly Overview</h2>
+      <p>
+        <time dateTime={weekStart}>{dateFormatter.format(new Date(weekStart))}</time>
+        {' – '}
+        <time dateTime={weekEnd}>{dateFormatter.format(new Date(weekEnd))}</time>
+      </p>
+      <div className="weekly-overview__navigation" role="group" aria-label="Week navigation">
+        <button type="button" onClick={() => setPastWeekStart(shiftCalendarDate(weekStart, -7))}>
+          Previous Week
+        </button>
+        <button type="button" onClick={selectNextWeek} disabled={isCurrentWeek}>
+          Next Week
+        </button>
+        <button type="button" onClick={() => setPastWeekStart(undefined)} disabled={isCurrentWeek}>
+          Back to Current Week
+        </button>
+      </div>
+      <WeeklyStats key={weekStart} weekStart={weekStart} />
+    </section>
+  );
+}
+
+function WeeklyStats({ weekStart }: { weekStart: string }) {
   const [state, setState] = useState<OverviewState>({ status: 'loading' });
 
   useEffect(() => {
@@ -71,7 +197,8 @@ export function WeeklyOverview() {
 
     async function loadSummary() {
       try {
-        const response = await fetch('/api/weekly-summary', { signal: controller.signal });
+        const query = new URLSearchParams({ weekStart });
+        const response = await fetch(`/api/weekly-summary?${query}`, { signal: controller.signal });
         if (!response.ok) {
           const message = response.status === 429
             ? 'Garmin rate limit reached. Try again later.'
@@ -85,7 +212,7 @@ export function WeeklyOverview() {
         }
 
         const data: unknown = await response.json();
-        if (!isWeeklySummary(data)) {
+        if (!isWeeklySummary(data) || data.weekStart !== weekStart) {
           throw new Error('Unexpected weekly summary response');
         }
         if (!controller.signal.aborted) {
@@ -100,7 +227,7 @@ export function WeeklyOverview() {
 
     void loadSummary();
     return () => controller.abort();
-  }, []);
+  }, [weekStart]);
 
   const summary = state.status === 'ready' ? state.summary : undefined;
   const stats = summary && [
@@ -111,17 +238,11 @@ export function WeeklyOverview() {
   ];
 
   return (
-    <section aria-labelledby={headingId}>
-      <h2 id={headingId}>Weekly Overview</h2>
+    <>
       {state.status === 'loading' && <p role="status">Loading weekly running statistics…</p>}
       {state.status === 'error' && <p role="alert">{state.message}</p>}
       {summary && stats && (
         <>
-          <p>
-            <time dateTime={summary.weekStart}>{dateFormatter.format(new Date(summary.weekStart))}</time>
-            {' – '}
-            <time dateTime={summary.weekEnd}>{dateFormatter.format(new Date(summary.weekEnd))}</time>
-          </p>
           {summary.activityCount === 0 && <p role="status">No running activities this week.</p>}
           <dl className="weekly-overview__stats">
             {stats.map(({ label, value }) => (
@@ -131,8 +252,10 @@ export function WeeklyOverview() {
               </div>
             ))}
           </dl>
+          <HeartRateZones zones={summary.heartRateZones} activityCount={summary.activityCount} />
+          <WeeklyComparison previousWeek={summary.previousWeek} comparison={summary.comparison} />
         </>
       )}
-    </section>
+    </>
   );
 }

@@ -16,3 +16,12 @@
   font-weight: bold;
   font-variant-numeric: tabular-nums;
 }
+.weekly-overview__navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.weekly-overview__comparison {
+  margin-block-start: 1.5rem;
+}
