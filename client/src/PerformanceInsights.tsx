@@ -20,21 +20,21 @@ export function PerformanceInsights({ activities }: { activities: readonly Perfo
       ) : (
         <>
           <dl className="comparison-lab__insight-grid">
-            <div>
+            <div className="data-card">
               <dt>Compared runs</dt>
               <dd>{totalComparedRuns}</dd>
             </div>
-            <div>
+            <div className="data-card">
               <dt>Distance-weighted average pace</dt>
               <dd>{averagePaceSecondsPerKm === null ? 'Unavailable' : `${formatTime(averagePaceSecondsPerKm)}/km`}</dd>
             </div>
             {paceChangeSecondsPerKm !== null && averageHeartRateChangeBpm !== null && (
               <>
-                <div>
+                <div className="data-card">
                   <dt>Pace change</dt>
                   <dd>{signedNumber.format(paceChangeSecondsPerKm)} s/km</dd>
                 </div>
-                <div>
+                <div className="data-card">
                   <dt>Average heart rate change</dt>
                   <dd>{signedNumber.format(averageHeartRateChangeBpm)} bpm</dd>
                 </div>

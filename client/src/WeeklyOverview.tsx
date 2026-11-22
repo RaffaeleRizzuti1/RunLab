@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { heartRateZoneKeys, type HeartRateZones as ZoneSummary } from '../../server/src/heart-rate-zones';
 import { getRomeWeek, isCalendarDate, shiftCalendarDate } from '../../server/src/rome-calendar';
+import { formatTime } from './format-run-time';
 import { HeartRateZones } from './HeartRateZones';
 import './WeeklyOverview.css';
 
@@ -100,10 +101,7 @@ function formatPace(secondsPerKm: number | null): string {
     return 'Unavailable';
   }
 
-  const seconds = Math.round(secondsPerKm);
-  const minutesPart = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const secondsPart = String(seconds % 60).padStart(2, '0');
-  return `${minutesPart}:${secondsPart} /km`;
+  return `${formatTime(secondsPerKm)} /km`;
 }
 
 function formatPercentChange(value: number | null): string {
@@ -118,38 +116,34 @@ const signedChange = new Intl.NumberFormat('en', {
   maximumFractionDigits: 1,
 });
 
-function WeeklyComparison({ previousWeek, comparison }: Pick<WeeklySummary, 'previousWeek' | 'comparison'>) {
-  const changes = [
-    { label: 'Distance change', value: formatPercentChange(comparison.distanceChangePercent) },
-    { label: 'Duration change', value: formatPercentChange(comparison.durationChangePercent) },
-    { label: 'Running activity change', value: signedChange.format(comparison.activityCountChange) },
+const metricLabels = ['Total distance', 'Running duration', 'Running activities', 'Average pace'];
+
+function weeklyMetrics(summary: WeeklySummary) {
+  const { previousWeek, comparison } = summary;
+  return [
     {
-      label: 'Average pace change',
-      value: comparison.paceChangeSecondsPerKm === null
+      value: `${summary.totalDistanceKm.toFixed(2)} km`,
+      previous: `${previousWeek.totalDistanceKm.toFixed(2)} km`,
+      change: formatPercentChange(comparison.distanceChangePercent),
+    },
+    {
+      value: formatDuration(summary.totalDurationMinutes),
+      previous: formatDuration(previousWeek.totalDurationMinutes),
+      change: formatPercentChange(comparison.durationChangePercent),
+    },
+    {
+      value: summary.activityCount,
+      previous: previousWeek.activityCount,
+      change: signedChange.format(comparison.activityCountChange),
+    },
+    {
+      value: formatPace(summary.averagePaceSecondsPerKm),
+      previous: formatPace(previousWeek.averagePaceSecondsPerKm),
+      change: comparison.paceChangeSecondsPerKm === null
         ? 'Unavailable'
         : `${signedChange.format(comparison.paceChangeSecondsPerKm)} s/km`,
     },
   ];
-
-  return (
-    <section className="weekly-overview__comparison">
-      <h3>Weekly Comparison</h3>
-      <p>
-        Previous week{' '}
-        <time dateTime={previousWeek.weekStart}>{dateFormatter.format(new Date(previousWeek.weekStart))}</time>
-        {' – '}
-        <time dateTime={previousWeek.weekEnd}>{dateFormatter.format(new Date(previousWeek.weekEnd))}</time>
-      </p>
-      <dl className="weekly-overview__stats">
-        {changes.map(({ label, value }) => (
-          <div className="weekly-overview__card" key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
 }
 
 export function WeeklyOverview() {
@@ -167,23 +161,28 @@ export function WeeklyOverview() {
 
   return (
     <section aria-labelledby={headingId}>
-      <h2 id={headingId}>Weekly Overview</h2>
-      <p>
-        <time dateTime={weekStart}>{dateFormatter.format(new Date(weekStart))}</time>
-        {' – '}
-        <time dateTime={weekEnd}>{dateFormatter.format(new Date(weekEnd))}</time>
-      </p>
-      <div className="weekly-overview__navigation" role="group" aria-label="Week navigation">
-        <button type="button" onClick={() => setPastWeekStart(shiftCalendarDate(weekStart, -7))}>
-          Previous Week
-        </button>
-        <button type="button" onClick={selectNextWeek} disabled={isCurrentWeek}>
-          Next Week
-        </button>
-        <button type="button" onClick={() => setPastWeekStart(undefined)} disabled={isCurrentWeek}>
-          Back to Current Week
-        </button>
-      </div>
+      <header className="training-overview__header">
+        <div>
+          <h2 id={headingId}>Training Overview</h2>
+          <p className="training-overview__dates">
+            <time dateTime={weekStart}>{dateFormatter.format(new Date(weekStart))}</time>
+            {' – '}
+            <time dateTime={weekEnd}>{dateFormatter.format(new Date(weekEnd))}</time>
+            <span>Europe/Rome</span>
+          </p>
+        </div>
+        <div className="weekly-overview__navigation" role="group" aria-label="Week navigation">
+          <button type="button" onClick={() => setPastWeekStart(shiftCalendarDate(weekStart, -7))}>
+            Previous Week
+          </button>
+          <button type="button" onClick={selectNextWeek} disabled={isCurrentWeek}>
+            Next Week
+          </button>
+          <button type="button" onClick={() => setPastWeekStart(undefined)} disabled={isCurrentWeek}>
+            Back to Current Week
+          </button>
+        </div>
+      </header>
       <WeeklyStats key={weekStart} weekStart={weekStart} />
     </section>
   );
@@ -230,30 +229,48 @@ function WeeklyStats({ weekStart }: { weekStart: string }) {
   }, [weekStart]);
 
   const summary = state.status === 'ready' ? state.summary : undefined;
-  const stats = summary && [
-    { label: 'Total distance', value: `${summary.totalDistanceKm.toFixed(2)} km` },
-    { label: 'Running duration', value: formatDuration(summary.totalDurationMinutes) },
-    { label: 'Running activities', value: summary.activityCount },
-    { label: 'Average pace', value: formatPace(summary.averagePaceSecondsPerKm) },
-  ];
+  const metrics = summary ? weeklyMetrics(summary) : undefined;
 
   return (
     <>
-      {state.status === 'loading' && <p role="status">Loading weekly running statistics…</p>}
-      {state.status === 'error' && <p role="alert">{state.message}</p>}
-      {summary && stats && (
+      <div className="weekly-overview__context">
+        {state.status === 'loading' && <p role="status">Loading weekly running statistics…</p>}
+        {state.status === 'error' && <p role="alert">{state.message}</p>}
+        {summary && (
+          <p>
+            Compared with{' '}
+            <time dateTime={summary.previousWeek.weekStart}>{dateFormatter.format(new Date(summary.previousWeek.weekStart))}</time>
+            {' – '}
+            <time dateTime={summary.previousWeek.weekEnd}>{dateFormatter.format(new Date(summary.previousWeek.weekEnd))}</time>
+          </p>
+        )}
+      </div>
+      {state.status !== 'error' && (
+        <dl className="weekly-overview__stats" aria-hidden={state.status === 'loading' || undefined}>
+          {metricLabels.map((label, index) => {
+            const metric = metrics?.[index];
+            return (
+              <div className="weekly-overview__card data-card" key={label}>
+                <dt>{label}</dt>
+                <dd className="weekly-overview__value">{metric?.value ?? '—'}</dd>
+                <dd className="weekly-overview__baseline">
+                  Previous <span>{metric?.previous ?? '—'}</span>
+                </dd>
+                <dd className="weekly-overview__delta">
+                  Change <span>{metric?.change ?? '—'}</span>
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+      {summary && (
         <>
           {summary.activityCount === 0 && <p role="status">No running activities this week.</p>}
-          <dl className="weekly-overview__stats">
-            {stats.map(({ label, value }) => (
-              <div className="weekly-overview__card" key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
+          {summary.comparison.paceChangeSecondsPerKm !== null && (
+            <p className="weekly-overview__pace-note">A negative pace change indicates a faster average pace.</p>
+          )}
           <HeartRateZones zones={summary.heartRateZones} activityCount={summary.activityCount} />
-          <WeeklyComparison previousWeek={summary.previousWeek} comparison={summary.comparison} />
         </>
       )}
     </>

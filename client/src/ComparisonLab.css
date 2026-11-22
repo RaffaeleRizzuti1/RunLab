@@ -1,28 +1,39 @@
-.comparison-lab {
-  margin-block: 1.5rem;
+.comparison-lab form {
+  margin-block: var(--space-4);
+}
+
+.comparison-lab form > p {
+  margin-block-start: 0;
 }
 
 .comparison-lab__filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: 0.75rem;
-  margin-block-end: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
 }
 
 .comparison-lab__filters label {
+  min-inline-size: 0;
   display: grid;
-  gap: 0.25rem;
+  align-content: end;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 
 .comparison-lab__filters input {
-  box-sizing: border-box;
   min-inline-size: 0;
   inline-size: 100%;
-  font: inherit;
+  font-size: var(--text-body);
 }
 
 .comparison-lab__results {
+  max-inline-size: 100%;
   overflow-x: auto;
+  background: var(--color-surface);
+  border: var(--border);
+  border-radius: var(--radius-card);
 }
 
 .comparison-lab__results table {
@@ -34,37 +45,203 @@
 .comparison-lab__results caption,
 .comparison-lab__results th,
 .comparison-lab__results td {
-  padding: 0.5rem;
+  padding: var(--space-3) var(--space-4);
   text-align: start;
 }
 
-.comparison-lab__results th,
-.comparison-lab__results td {
-  border-block-end: 1px solid currentColor;
+.comparison-lab__results caption,
+.comparison-lab__results th {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
 }
 
-.comparison-lab__results td:not(:nth-child(2)) {
+.comparison-lab__results th {
+  background: var(--color-sidebar);
+}
+
+.comparison-lab__results :is(th, td):not(:nth-child(2)) {
   white-space: nowrap;
 }
 
+.comparison-lab__results tbody th {
+  min-inline-size: 9rem;
+  background: transparent;
+  font-size: var(--text-body);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .comparison-lab__insights {
-  margin-block-start: 1.5rem;
+  margin-block-start: var(--space-6);
 }
 
 .comparison-lab__insight-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
-.comparison-lab__insight-grid > div {
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
+.comparison-lab__insight-grid dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
 }
 
 .comparison-lab__insight-grid dd {
-  margin: 0.375rem 0 0;
-  font-weight: bold;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-metric);
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
+}
+
+.comparison-lab__filters fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border);
+  border-radius: var(--radius-control);
+}
+
+.comparison-lab__filters legend {
+  padding-inline: var(--space-1);
+  font-weight: 750;
+}
+
+.comparison-lab__filters fieldset p {
+  margin-block-end: 0;
+  font-size: var(--text-sm);
+}
+
+.comparison-lab__field-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: var(--space-3);
+}
+
+.comparison-lab__results tbody tr + tr > * { border-block-start: var(--border); }
+.comparison-lab__mobile-results { display: none; }
+
+.pace-chart {
+  margin: var(--space-4) 0 0;
+}
+
+.pace-chart figcaption {
+  font-weight: 750;
+  font-size: var(--text-section);
+}
+
+.pace-chart__axis-title,
+.pace-chart__preview {
+  font-size: var(--text-sm);
+}
+
+.pace-chart__layout {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-5) var(--space-4) 0 0;
+}
+
+.pace-chart__plot {
+  position: relative;
+  block-size: clamp(10rem, 26vw, 17rem);
+}
+
+.pace-chart__plot svg {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.pace-chart__gridline { stroke: var(--color-control-border); }
+.pace-chart__trendline { stroke: var(--color-accent); stroke-width: 2; stroke-dasharray: 5 4; }
+
+.pace-chart__pace-axis,
+.pace-chart__date-axis {
+  position: relative;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.pace-chart__date-axis { min-block-size: 1.5rem; grid-column: 2; }
+.pace-chart__date-axis span { position: absolute; translate: -50% 0; white-space: nowrap; }
+.pace-chart__pace-axis span { position: absolute; inset-inline-end: 0; translate: 0 -50%; }
+
+button.pace-chart__point {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  translate: -50% -50%;
+  touch-action: manipulation;
+}
+
+.pace-chart__point::before {
+  content: '';
+  inline-size: 0.65rem;
+  block-size: 0.65rem;
+  border: 1px solid var(--color-background);
+  border-radius: 50%;
+  background: var(--color-zone-2);
+}
+
+.pace-chart__point[aria-pressed="true"]::before {
+  background: var(--color-accent);
+  outline: 2px solid var(--color-text);
+}
+
+.pace-chart__point:is(:focus-visible, :hover) { z-index: 1; }
+
+.pace-chart__preview {
+  min-block-size: 1.5em;
+}
+
+.pace-chart__selection {
+  background: var(--color-sidebar);
+}
+
+.pace-chart__selection h4 {
+  margin: 0;
+}
+
+.pace-chart__selection time {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 52rem) {
+  .comparison-lab__results { display: none; }
+
+  .comparison-lab__mobile-results {
+    display: grid;
+    gap: var(--space-3);
+    padding: 0;
+    list-style: none;
+  }
+
+  .comparison-lab__mobile-results time,
+  .comparison-lab__mobile-results dt { color: var(--color-muted); font-size: var(--text-sm); }
+  .comparison-lab__mobile-results h4 { margin: var(--space-1) 0 var(--space-3); }
+  .comparison-lab__mobile-results dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .comparison-lab__mobile-results dd { margin: 0; font-variant-numeric: tabular-nums; }
+}
+
+@media (forced-colors: active) {
+  .pace-chart__trendline { stroke: Highlight; }
+  .pace-chart__gridline { stroke: GrayText; }
+  .pace-chart__point::before { background: ButtonText; }
+  .pace-chart__point[aria-pressed="true"]::before { outline-color: Highlight; }
 }

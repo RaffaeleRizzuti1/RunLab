@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppShell } from './AppShell';
 import { Activities } from './Activities';
 import { ComparisonLab } from './ComparisonLab';
 import { WeeklyOverview } from './WeeklyOverview';
@@ -61,12 +62,13 @@ export function App() {
   }, []);
 
   return (
-    <main>
-      <h1>RunLab</h1>
-      <p role="status">{messages[status]}</p>
-      <WeeklyOverview />
-      <ComparisonLab />
-      <Activities />
-    </main>
+    <AppShell
+      status={<p className="connection-status" data-status={status} role="status">{messages[status]}</p>}
+      panels={{
+        dashboard: <WeeklyOverview />,
+        'comparison-lab': <ComparisonLab />,
+        activities: <Activities />,
+      }}
+    />
   );
 }

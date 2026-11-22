@@ -1,27 +1,94 @@
-.weekly-overview__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  gap: 0.75rem;
+.training-overview__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: var(--space-4);
+  padding-block-end: var(--space-4);
+  border-block-end: var(--border);
 }
 
-.weekly-overview__card {
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  padding: 1rem;
+.training-overview__header h2 {
+  font-size: var(--text-page);
+  letter-spacing: -0.035em;
 }
 
-.weekly-overview__card dd {
-  margin: 0.375rem 0 0;
-  font-size: 1.375rem;
-  font-weight: bold;
-  font-variant-numeric: tabular-nums;
+.training-overview__dates {
+  margin-block: var(--space-2) 0;
 }
+
+.training-overview__dates span {
+  display: block;
+  margin-block-start: var(--space-1);
+  font-size: var(--text-sm);
+}
+
 .weekly-overview__navigation {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
 }
 
-.weekly-overview__comparison {
-  margin-block-start: 1.5rem;
+.weekly-overview__context,
+.weekly-overview__pace-note {
+  font-size: var(--text-sm);
+}
+
+.weekly-overview__context {
+  min-block-size: 1.5em;
+  margin-block: var(--space-4) var(--space-3);
+}
+
+.weekly-overview__context p { margin: 0; }
+
+.weekly-overview__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-block: 0;
+}
+
+.weekly-overview__card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+}
+
+.weekly-overview__card dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.weekly-overview__card dd { margin: 0; }
+
+.weekly-overview__card .weekly-overview__value {
+  margin-block: var(--space-1) var(--space-2);
+  font-size: var(--text-metric);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-overview__baseline,
+.weekly-overview__delta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.weekly-overview__baseline span,
+.weekly-overview__delta span {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 72rem) {
+  .weekly-overview__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 34rem) {
+  .weekly-overview__stats { grid-template-columns: minmax(0, 1fr); }
 }

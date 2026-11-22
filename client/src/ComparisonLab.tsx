@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { isCalendarDate, romeDate, shiftCalendarDate } from '../../server/src/rome-calendar';
 import { formatTime } from './format-run-time';
 import { PerformanceInsights } from './PerformanceInsights';
+import { PerformanceTrend } from './PerformanceTrend';
 import type { PerformanceActivity } from './performance-insights';
 import './ComparisonLab.css';
 
@@ -32,11 +33,21 @@ const requestError = 'Could not compare runs. Try again.';
 const dateFormatter = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone: 'UTC' });
 const distanceFormatter = new Intl.NumberFormat('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const numberFields = [
-  { name: 'distanceKm', label: 'Target distance (km)', min: 0, step: 'any' },
-  { name: 'distanceTolerancePercent', label: 'Distance tolerance (%)', min: 0, max: 30, step: 'any' },
-  { name: 'targetHeartRate', label: 'Target average heart rate (bpm)', min: 1, step: 1 },
-  { name: 'heartRateToleranceBpm', label: 'Heart rate tolerance (bpm)', min: 0, max: 30, step: 1 },
+const metricGroups = [
+  {
+    legend: 'Distance',
+    fields: [
+      { name: 'distanceKm', label: 'Target (km)', min: 0, step: 'any' },
+      { name: 'distanceTolerancePercent', label: 'Tolerance (±%)', min: 0, max: 30, step: 'any' },
+    ],
+  },
+  {
+    legend: 'Average heart rate',
+    fields: [
+      { name: 'targetHeartRate', label: 'Target (bpm)', min: 1, step: 1 },
+      { name: 'heartRateToleranceBpm', label: 'Tolerance (±bpm)', min: 0, max: 30, step: 1 },
+    ],
+  },
 ] as const;
 
 function initialFilters(): Filters {
@@ -96,6 +107,17 @@ function ComparisonResults({ results }: { results: Results }) {
     return <p role="status">0 matching runs. Try changing the filters or date range.</p>;
   }
 
+  const rows = activities.map((run) => ({
+    ...run,
+    formattedDate: dateFormatter.format(new Date(run.date)),
+    metrics: [
+      { label: 'Distance', value: `${distanceFormatter.format(run.distanceKm)} km` },
+      { label: 'Duration', value: formatTime(run.durationSeconds, true) },
+      { label: 'Average HR', value: `${Math.round(run.averageHeartRate)} bpm` },
+      { label: 'Average pace', value: `${formatTime(run.averagePaceSecondsPerKm)} /km` },
+    ],
+  }));
+
   return (
     <>
       <p id={countId} role="status">{totalMatchingCount} matching {totalMatchingCount === 1 ? 'run' : 'runs'}</p>
@@ -113,19 +135,29 @@ function ComparisonResults({ results }: { results: Results }) {
             </tr>
           </thead>
           <tbody>
-            {activities.map((run) => (
+            {rows.map((run) => (
               <tr key={run.activityId}>
-                <td><time dateTime={run.date}>{dateFormatter.format(new Date(run.date))}</time></td>
-                <td>{run.name}</td>
-                <td>{distanceFormatter.format(run.distanceKm)} km</td>
-                <td>{formatTime(run.durationSeconds, true)}</td>
-                <td>{Math.round(run.averageHeartRate)} bpm</td>
-                <td>{formatTime(run.averagePaceSecondsPerKm)} /km</td>
+                <td><time dateTime={run.date}>{run.formattedDate}</time></td>
+                <th scope="row">{run.name}</th>
+                {run.metrics.map(({ label, value }) => <td key={label}>{value}</td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <ul className="comparison-lab__mobile-results" aria-label="Matching runs, earliest first">
+        {rows.map((run) => (
+          <li className="data-card" key={run.activityId}>
+            <time dateTime={run.date}>{run.formattedDate}</time>
+            <h4>{run.name}</h4>
+            <dl>
+              {run.metrics.map(({ label, value }) => (
+                <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
@@ -198,37 +230,56 @@ export function ComparisonLab() {
 
   return (
     <section className="comparison-lab" aria-labelledby={headingId}>
-      <h2 id={headingId}>Comparison Lab</h2>
-      <form onSubmit={compareRuns}>
-        <p id={dateHelpId}>Rome calendar dates. Include up to 90 days, counting both dates.</p>
+      <h2 id={headingId}>Find comparable runs</h2>
+      <form className="data-card" onSubmit={compareRuns}>
         <div className="comparison-lab__filters">
-          <label>
-            Start date
-            <input type="date" name="from" value={filters.from} required aria-describedby={dateHelpId}
-              onChange={(event) => updateFilter('from', event.target.value)} />
-          </label>
-          <label>
-            End date
-            <input type="date" name="to" value={filters.to} required aria-describedby={dateHelpId}
-              onChange={(event) => updateFilter('to', event.target.value)} />
-          </label>
-          {numberFields.map(({ name, label, ...constraints }) => (
-            <label key={name}>
-              {label}
-              <input type="number" name={name} {...constraints} value={filters[name]} required
-                onChange={(event) => updateFilter(name, event.target.value)} />
-            </label>
+          <fieldset>
+            <legend>Date range</legend>
+            <div className="comparison-lab__field-pair">
+              <label>
+                Start date
+                <input type="date" name="from" value={filters.from} required aria-describedby={dateHelpId}
+                  onChange={(event) => updateFilter('from', event.target.value)} />
+              </label>
+              <label>
+                End date
+                <input type="date" name="to" value={filters.to} required aria-describedby={dateHelpId}
+                  onChange={(event) => updateFilter('to', event.target.value)} />
+              </label>
+            </div>
+            <p id={dateHelpId}>Up to 90 days, including both dates. Europe/Rome.</p>
+          </fieldset>
+          {metricGroups.map(({ legend, fields }) => (
+            <fieldset key={legend}>
+              <legend>{legend}</legend>
+              <div className="comparison-lab__field-pair">
+                {fields.map(({ name, label, ...constraints }) => (
+                  <label key={name}>
+                    {label}
+                    <input type="number" name={name} {...constraints} value={filters[name]} required
+                      onChange={(event) => updateFilter(name, event.target.value)} />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           ))}
         </div>
-        <button type="submit" disabled={state.status === 'loading'}>Compare Runs</button>
+        <button className="button-primary" type="submit" disabled={state.status === 'loading'}>Compare Runs</button>
       </form>
 
       {state.status === 'loading' && <p role="status">Finding comparable runs…</p>}
       {state.status === 'error' && <p role="alert">{state.message}</p>}
       {state.status === 'ready' && (
         <>
-          <ComparisonResults results={state.results} />
+          {state.results.totalMatchingCount === 0 && <ComparisonResults results={state.results} />}
           <PerformanceInsights activities={state.results.activities} />
+          <PerformanceTrend activities={state.results.activities} />
+          {state.results.totalMatchingCount > 0 && (
+            <section className="comparison-lab__insights" aria-label="Matched activities">
+              <h3>Matched activities</h3>
+              <ComparisonResults results={state.results} />
+            </section>
+          )}
         </>
       )}
     </section>

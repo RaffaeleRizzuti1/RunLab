@@ -1,0 +1,16 @@
+.activity-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.25rem), 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-3) 0;
+}
+
+.activity-metrics dt {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.activity-metrics dd {
+  margin: var(--space-1) 0 0;
+  font-variant-numeric: tabular-nums;
+}

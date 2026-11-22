@@ -1,17 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { isCalendarDate } from '../../server/src/rome-calendar';
+import { ActivityMetrics } from './ActivityMetrics';
+import { recentActivityMetrics, resolveRecentActivitySelection, type RecentActivity } from './activity-metrics';
+import './Activities.css';
 
-type Activity = {
-  name?: string;
-  date?: string;
-  activityType?: string;
-  distance?: number;
-  duration?: number;
-  averageHeartRate?: number;
-};
+const dateFormatter = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeZone: 'UTC' });
+
+function ActivityCard({ activity, expanded, onToggle }: {
+  activity: RecentActivity;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const panelId = useId();
+  const name = activity.name || 'Unnamed activity';
+  const date = isCalendarDate(activity.date) ? activity.date : undefined;
+  const metrics = recentActivityMetrics(activity);
+
+  return (
+    <li className="activity-card data-card" data-expanded={expanded}>
+      <h3>
+        <button className="activity-card__toggle" type="button" aria-expanded={expanded}
+          aria-controls={panelId} onClick={onToggle}>
+          <span className="activity-card__heading">
+            <span className="activity-card__name">{name}</span>
+            <span className="activity-card__metadata">
+              {date && <time dateTime={date}>{dateFormatter.format(new Date(date))}</time>}
+              {activity.activityType && <span>{activity.activityType.replaceAll('_', ' ')}</span>}
+            </span>
+          </span>
+          <span className="activity-card__indicator" aria-hidden="true">{expanded ? '−' : '+'}</span>
+        </button>
+      </h3>
+      {!expanded && <ActivityMetrics values={metrics} />}
+      <div className="activity-card__details" id={panelId} hidden={!expanded}>
+        <h4>Activity details</h4>
+        {expanded && <ActivityMetrics values={metrics} showMissing />}
+      </div>
+    </li>
+  );
+}
 
 export function Activities() {
-  const [activities, setActivities] = useState<Activity[]>();
+  const [activities, setActivities] = useState<RecentActivity[]>();
   const [error, setError] = useState<string>();
+  const [selection, setSelection] = useState<RecentActivity>();
+  const selected = resolveRecentActivitySelection(activities, selection);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -31,11 +64,12 @@ export function Activities() {
           throw new Error('Activity request failed');
         }
 
-        const data: Activity[] = await response.json();
+        const data: RecentActivity[] = await response.json();
         if (!Array.isArray(data)) {
           throw new Error('Unexpected activity response');
         }
         if (!controller.signal.aborted) {
+          setSelection(undefined);
           setActivities(data);
         }
       } catch {
@@ -52,19 +86,13 @@ export function Activities() {
   return (
     <section aria-labelledby="activities-heading">
       <h2 id="activities-heading">Recent Garmin activities</h2>
-      {!activities && <p role="status">{error ?? 'Loading Garmin activities…'}</p>}
+      {!activities && <p role={error ? 'alert' : 'status'}>{error ?? 'Loading Garmin activities…'}</p>}
       {activities?.length === 0 && <p>No Garmin activities found.</p>}
       {activities && activities.length > 0 && (
-        <ul>
+        <ul className="activity-list">
           {activities.map((activity, index) => (
-            <li key={index}>
-              <strong>{activity.name || 'Unnamed activity'}</strong>
-              {activity.date && <> · {activity.date}</>}
-              {activity.activityType && <> · {activity.activityType.replaceAll('_', ' ')}</>}
-              {activity.distance !== undefined && <> · {(activity.distance / 1_000).toFixed(2)} km</>}
-              {activity.duration !== undefined && <> · {(activity.duration / 60).toFixed(1)} min</>}
-              {activity.averageHeartRate !== undefined && <> · {Math.round(activity.averageHeartRate)} bpm</>}
-            </li>
+            <ActivityCard key={index} activity={activity} expanded={selected === activity}
+              onToggle={() => setSelection(selected === activity ? undefined : activity)} />
           ))}
         </ul>
       )}
