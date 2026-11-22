@@ -138,6 +138,9 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
         const activity = asRecord(value);
         const type = activity.activityType == null ? {} : asRecord(activity.activityType);
         return {
+          activityId: typeof activity.activityId === 'number' ? activity.activityId : undefined,
+          name: typeof activity.activityName === 'string' ? activity.activityName : undefined,
+          averageHeartRate: typeof activity.averageHR === 'number' ? activity.averageHR : undefined,
           startTimeGmt: typeof activity.startTimeGMT === 'string' ? activity.startTimeGMT : undefined,
           // Garmin's activity type schema identifies running as type ID 1.
           isRunning: type.typeKey === 'running' || type.parentTypeId === 1,

@@ -28,6 +28,18 @@ cp -n server/.env.example server/.env
 
 Open `server/.env` in your editor and replace the `GARMIN_API_KEY` placeholder with your personal key. Keep the key in the Git-ignored file. Start or restart `npm run dev`, then load http://127.0.0.1:5173 to see your activities. The backend exchanges the key for a short-lived token and keeps that token in memory. The health check works without a Garmin key.
 
+### Comparison Lab API
+
+`GET /api/comparison` finds running activities whose distance and average heart rate are both within the requested tolerances.
+
+```sh
+curl 'http://127.0.0.1:3000/api/comparison?from=2026-10-01&to=2026-10-31&distanceKm=10&targetHeartRate=150'
+```
+
+`from` and `to` are inclusive Europe/Rome calendar dates with a maximum range of 90 calendar days. Supply a positive `distanceKm` and a positive integer `targetHeartRate` in bpm. The optional `distanceTolerancePercent` accepts 0–30 and defaults to 10. The optional `heartRateToleranceBpm` accepts integers from 0–30 and also defaults to 10. Both tolerance boundaries are inclusive.
+
+The response contains the applied `filters`, `totalMatchingCount`, and matching `activities` ordered by start time, earliest first. An empty result returns HTTP 200 and an empty list. Invalid filters return HTTP 400.
+
 ## Testing and building
 
 ```sh

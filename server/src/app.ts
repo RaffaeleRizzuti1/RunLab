@@ -1,4 +1,5 @@
 import express, { type Response } from 'express';
+import { findComparableActivities, parseComparisonFilters } from './comparison.js';
 import { createGarminClient, GarminError } from './garmin.js';
 import { getRomeWeek, shiftCalendarDate, weekFromMonday } from './rome-calendar.js';
 import { summarizeWeek, compareWeeks } from './weekly-summary.js';
@@ -53,6 +54,28 @@ export function createApp(garmin = createGarminClient()) {
       const current = summarizeWeek(week, activities);
       const previous = summarizeWeek(previousWeek, activities);
       response.json({ ...current, previousWeek: previous, comparison: compareWeeks(current, previous) });
+    } catch (error) {
+      sendGarminError(response, error);
+    }
+  });
+
+  app.get('/api/comparison', async (request, response) => {
+    response.set('Cache-Control', 'no-store');
+    const result = parseComparisonFilters(request.query);
+    if ('error' in result) {
+      response.status(400).json({ error: result.error });
+      return;
+    }
+
+    const { filters } = result;
+    try {
+      // Garmin filters by activity-local dates. The matcher enforces the exact Rome dates.
+      const candidates = await garmin.getActivitiesInDateRange(
+        shiftCalendarDate(filters.from, -1),
+        shiftCalendarDate(filters.to, 1),
+      );
+      const activities = findComparableActivities(filters, candidates);
+      response.json({ filters, totalMatchingCount: activities.length, activities });
     } catch (error) {
       sendGarminError(response, error);
     }
