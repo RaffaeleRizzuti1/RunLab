@@ -90,7 +90,7 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
     return pendingToken;
   }
 
-  async function searchActivities(query: URLSearchParams): Promise<unknown[]> {
+  async function searchActivities(query: URLSearchParams, requireComplete = false): Promise<unknown[]> {
     const token = await getToken();
     const response = await send(`${activitiesPath}?${query}`, 'GET', `Bearer ${token.value}`);
     if (!response.ok) {
@@ -102,6 +102,10 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
     }
     if (response.status === 204) {
       return [];
+    }
+    if (requireComplete && response.status !== 200) {
+      await response.body?.cancel();
+      throw new Error('Incomplete Garmin activity search');
     }
 
     const activities: unknown = await response.json();
@@ -117,9 +121,11 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
       return activities.slice(0, 5).map(summarizeActivity);
     },
 
-    async getActivitiesInDateRange(startDate: string, endDate: string) {
+    async getActivitiesInDateRange(startDate: string, endDate: string, requireComplete = false) {
       const limit = 99;
       const activities: unknown[] = [];
+      const seenActivityIds = new Set<number>();
+      const seenFullPages = new Set<string>();
 
       for (let start = 0; ; start += limit) {
         const page = await searchActivities(new URLSearchParams({
@@ -127,7 +133,22 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
           limit: String(limit),
           startDate,
           endDate,
-        }));
+        }), requireComplete);
+        if (requireComplete) {
+          if (page.length > limit) throw new Error('Invalid Garmin page size');
+          if (page.length === limit) {
+            const signature = JSON.stringify(page);
+            if (seenFullPages.has(signature)) throw new Error('Repeated Garmin activity page');
+            seenFullPages.add(signature);
+          }
+          for (const row of page) {
+            const id = row && typeof row === 'object' && 'activityId' in row ? row.activityId : undefined;
+            if (typeof id === 'number' && Number.isSafeInteger(id)) {
+              if (seenActivityIds.has(id)) throw new Error('Overlapping Garmin activity pages');
+              seenActivityIds.add(id);
+            }
+          }
+        }
         activities.push(...page);
         if (page.length < limit) {
           break;
@@ -135,15 +156,21 @@ export function createGarminClient(apiKey?: string, request: typeof fetch = fetc
       }
 
       return activities.map((value) => {
-        const activity = asRecord(value);
-        const type = activity.activityType == null ? {} : asRecord(activity.activityType);
+        const validRecord = (input: unknown) => typeof input === 'object' && input !== null && !Array.isArray(input);
+        const activity = requireComplete && !validRecord(value) ? {} : asRecord(value);
+        const type = activity.activityType == null || (requireComplete && !validRecord(activity.activityType))
+          ? {} : asRecord(activity.activityType);
         return {
           activityId: typeof activity.activityId === 'number' ? activity.activityId : undefined,
           name: typeof activity.activityName === 'string' ? activity.activityName : undefined,
+          maxHeartRate: typeof activity.maxHR === 'number' ? activity.maxHR : undefined,
+          averageCadence: typeof activity.averageRunningCadenceInStepsPerMinute === 'number'
+            ? activity.averageRunningCadenceInStepsPerMinute : undefined,
           averageHeartRate: typeof activity.averageHR === 'number' ? activity.averageHR : undefined,
           startTimeGmt: typeof activity.startTimeGMT === 'string' ? activity.startTimeGMT : undefined,
           // Garmin's activity type schema identifies running as type ID 1.
           isRunning: type.typeKey === 'running' || type.parentTypeId === 1,
+          hasActivityType: typeof type.typeKey === 'string' && type.typeKey.trim() !== '' || type.parentTypeId === 1,
           distance: typeof activity.distance === 'number' ? activity.distance : undefined,
           duration: typeof activity.duration === 'number' ? activity.duration : undefined,
           heartRateZoneSeconds: {

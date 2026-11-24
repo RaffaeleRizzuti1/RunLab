@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppShell } from './AppShell';
 import { Activities } from './Activities';
 import { ComparisonLab } from './ComparisonLab';
+import { TrainingPlanner } from './TrainingPlanner';
 import { WeeklyOverview } from './WeeklyOverview';
 
 type ConnectionStatus = 'checking' | 'connected' | 'error' | 'timeout';
@@ -68,6 +69,7 @@ export function App() {
         dashboard: <WeeklyOverview />,
         'comparison-lab': <ComparisonLab />,
         activities: <Activities />,
+        'training-planner': <TrainingPlanner />,
       }}
     />
   );

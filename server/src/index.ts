@@ -1,6 +1,7 @@
 import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { selectAiProvider } from './ai-provider-config.js';
 import { createGarminClient } from './garmin.js';
 
 try {
@@ -11,7 +12,10 @@ try {
   }
 }
 
-const app = createApp(createGarminClient(process.env.GARMIN_API_KEY?.trim()));
+const app = createApp(
+  createGarminClient(process.env.GARMIN_API_KEY?.trim()),
+  selectAiProvider(process.env),
+);
 const host = '127.0.0.1';
 const port = 3000;
 
